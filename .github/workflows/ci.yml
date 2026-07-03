@@ -15,12 +15,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: vite-project/package-lock.json
-      - working-directory: vite-project
-        run: npm ci
-      - working-directory: vite-project
-        run: npm run lint
-      - working-directory: vite-project
-        run: npm test
-      - working-directory: vite-project
-        run: npm run build
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
