@@ -3,15 +3,15 @@
 export const initialEmployees = [
   {
     id: "EMP001",
-    name: "Akshat Patel",
-    email: "akshat@company.com",
+    name: "Akshat Sanghvi",
+    email: "akshatsanghvi23@gmail.com",
     role: "Senior Frontend Engineer",
     department: "Engineering",
     status: "Active",
     avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150",
     joinDate: "2023-04-12",
     contact: "+91 98765 43210",
-    manager: "Evelyn Carter",
+    manager: "Manager",
     attendance: "98%",
     performanceRating: "4.7",
     salary: "$115,000",
@@ -21,14 +21,14 @@ export const initialEmployees = [
       { id: 3, title: "Refactor legacy chat module components", done: false }
     ],
     reviews: [
-      { reviewer: "Evelyn Carter", relation: "Manager", rating: 5, comment: "Exemplary frontend development leadership. Highly proactive." },
-      { reviewer: "Lucas Miller", relation: "Peer", rating: 4, comment: "Always helpful with UI styling, occasionally runs strict PR checks!" }
+      { reviewer: "Manager", relation: "Manager", rating: 5, comment: "Exemplary frontend development leadership. Highly proactive." },
+      { reviewer: "Personal Assistant", relation: "Peer", rating: 4, comment: "Always helpful with UI styling, occasionally runs strict PR checks!" }
     ]
   },
   {
     id: "EMP002",
-    name: "Sophia Martinez",
-    email: "sophia@company.com",
+    name: "Harshil Rathod",
+    email: "rharshil789@gmail.com",
     role: "Product Designer",
     department: "Design",
     status: "Active",
@@ -45,12 +45,12 @@ export const initialEmployees = [
       { id: 3, title: "Deliver final wireframes for analytics dashboard", done: false }
     ],
     reviews: [
-      { reviewer: "Akshat Patel", relation: "Peer", rating: 5, comment: "Her designs are clean, well-annotated and incredibly easy to translate to code." }
+      { reviewer: "Akshat Sanghvi", relation: "Peer", rating: 5, comment: "Her designs are clean, well-annotated and incredibly easy to translate to code." }
     ]
   },
   {
     id: "EMP003",
-    name: "Marcus Vance",
+    name: "Marcus Stoinis",
     email: "marcus@company.com",
     role: "Talent Acquisition Specialist",
     department: "Human Resources",
@@ -67,7 +67,7 @@ export const initialEmployees = [
       { id: 2, title: "Onboard 15 new hires in Q3", done: true }
     ],
     reviews: [
-      { reviewer: "Sarah Jenkins", relation: "Manager", rating: 4, comment: "Fabulous hiring results in technical departments." }
+      { reviewer: "Personal Assistant", relation: "Manager", rating: 4, comment: "Fabulous hiring results in technical departments." }
     ]
   },
   {
