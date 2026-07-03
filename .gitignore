@@ -14,7 +14,7 @@ dist-ssr
 
 # Environment & secrets
 .env
-server/hrdata.sqlite
+server/hrdata.sqlite*
 
 # Editor directories and files
 .vscode/*
