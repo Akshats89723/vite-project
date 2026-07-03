@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { orgQueries, userQueries } from "../db.js";
 import { planListForPricing, getPlanConfig } from "../billing/plans.js";
+import { generateInvoicePdf } from "../billing/invoice.js";
+import { sendInvoiceEmail } from "../email/index.js";
 import {
   isStripeEnabled,
   createCheckoutSession,
@@ -142,10 +144,11 @@ export function createBillingRouter({ requireAuth, requireRole, audit, CLIENT_OR
     }
   });
 
-  router.post("/razorpay/simulate-success", requireAuth, requireRole("admin"), (req, res) => {
+  router.post("/razorpay/simulate-success", requireAuth, requireRole("admin"), async (req, res) => {
     const { plan, subscriptionId } = req.body;
     const org = orgQueries.byId.get(req.user.org_id);
     const planCfg = getPlanConfig(plan);
+    const amount = plan === "pro" ? 29 : 99;
     try {
       orgQueries.updateRazorpayBilling.run({
         id: org.id,
@@ -157,8 +160,29 @@ export function createBillingRouter({ requireAuth, requireRole, audit, CLIENT_OR
         current_period_end: Date.now() + 30 * 24 * 60 * 60 * 1000,
       });
       audit(req, "razorpay_simulate_success", "organizations", org.id, { plan });
+
+      // Generate invoice PDF
+      const pdfBuffer = await generateInvoicePdf({
+        orgName: org.name,
+        plan,
+        amount,
+        invoiceId: subscriptionId,
+        email: req.user.email,
+        paymentMethod: "Razorpay (Simulated)"
+      });
+
+      // Email the PDF invoice
+      await sendInvoiceEmail({
+        email: req.user.email,
+        orgName: org.name,
+        plan,
+        amount,
+        pdfBuffer
+      });
+
       res.json({ ok: true });
     } catch (err) {
+      console.error("Simulation invoice failure:", err.message);
       res.status(500).json({ error: err.message });
     }
   });
@@ -183,7 +207,7 @@ export function createBillingRouter({ requireAuth, requireRole, audit, CLIENT_OR
   return router;
 }
 
-export function handleStripeWebhook(req, res, audit) {
+export async function handleStripeWebhook(req, res, audit) {
   const sig = req.headers["stripe-signature"];
   try {
     const event = constructWebhookEvent(req.body, sig);
@@ -203,6 +227,36 @@ export function handleStripeWebhook(req, res, audit) {
           subscription_status: "active",
         });
         audit({ user: null, ip: req.ip }, "stripe_checkout_complete", "organizations", orgId, { plan });
+
+        // Generate and email invoice PDF
+        try {
+          const org = orgQueries.byId.get(orgId);
+          const orgUsers = userQueries.byOrgId.all(orgId) || [];
+          const adminUser = orgUsers.find(u => u.role === "admin") || orgUsers[0];
+          const email = adminUser?.email || session.customer_details?.email || session.customer_email;
+
+          if (email) {
+            const amount = plan === "pro" ? 29 : 99;
+            const pdfBuffer = await generateInvoicePdf({
+              orgName: org.name,
+              plan,
+              amount,
+              invoiceId: session.subscription || session.id,
+              email,
+              paymentMethod: "Stripe"
+            });
+
+            await sendInvoiceEmail({
+              email,
+              orgName: org.name,
+              plan,
+              amount,
+              pdfBuffer
+            });
+          }
+        } catch (invoiceErr) {
+          console.error("Stripe webhook invoice generation failed:", invoiceErr.message);
+        }
       }
     }
 
@@ -253,7 +307,7 @@ export function handleStripeWebhook(req, res, audit) {
   }
 }
 
-export function handleRazorpayWebhook(req, res, audit) {
+export async function handleRazorpayWebhook(req, res, audit) {
   const signature = req.headers["x-razorpay-signature"];
   const rawBody = req.body.toString();
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
@@ -287,6 +341,36 @@ export function handleRazorpayWebhook(req, res, audit) {
         current_period_end: sub.current_end ? sub.current_end * 1000 : null,
       });
       audit({ user: null, ip: req.ip }, "razorpay_checkout_complete", "organizations", orgId, { plan });
+
+      // Generate and email invoice PDF
+      try {
+        const org = orgQueries.byId.get(orgId);
+        const orgUsers = userQueries.byOrgId.all(orgId) || [];
+        const adminUser = orgUsers.find(u => u.role === "admin") || orgUsers[0];
+        const email = adminUser?.email || sub.notes?.email;
+
+        if (email) {
+          const amount = plan === "pro" ? 29 : 99;
+          const pdfBuffer = await generateInvoicePdf({
+            orgName: org.name,
+            plan,
+            amount,
+            invoiceId: sub.id,
+            email,
+            paymentMethod: "Razorpay"
+          });
+
+          await sendInvoiceEmail({
+            email,
+            orgName: org.name,
+            plan,
+            amount,
+            pdfBuffer
+          });
+        }
+      } catch (invoiceErr) {
+        console.error("Razorpay webhook invoice generation failed:", invoiceErr.message);
+      }
     }
   }
 
