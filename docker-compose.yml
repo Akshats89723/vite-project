@@ -1,0 +1,31 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      CLIENT_ORIGIN: http://localhost:3001
+      JWT_SECRET: change_me_to_a_long_random_secret_min_32_chars
+      DATABASE_URL: postgresql://peoplecore:peoplecore@postgres:5432/peoplecore
+    depends_on:
+      - postgres
+    volumes:
+      - sqlite_data:/app/server
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: peoplecore
+      POSTGRES_PASSWORD: peoplecore
+      POSTGRES_DB: peoplecore
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./server/db/migrations/001_postgres.sql:/docker-entrypoint-initdb.d/001.sql
+
+volumes:
+  pg_data:
+  sqlite_data:
