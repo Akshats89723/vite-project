@@ -141,6 +141,19 @@ export const joinByInviteSchema = z.object({
   inviteToken: z.string().trim().min(1),
 });
 
+// ── Expenses ──────────────────────────────────────────────────────────────────
+
+export const createExpenseSchema = z.object({
+  amount: z.number().positive("Amount must be a positive number"),
+  category: z.enum(['Travel', 'Meals', 'Hardware', 'Software', 'L&D', 'Other']),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+  notes: z.string().trim().max(1000).optional(),
+});
+
+export const updateExpenseStatusSchema = z.object({
+  status: z.enum(["Pending", "Approved", "Rejected"]),
+});
+
 // ── Middleware factory ────────────────────────────────────────────────────────
 // Usage: app.post("/route", validate(mySchema), handler)
 

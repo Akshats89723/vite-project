@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 
 function OrgNode({ employee, tree, onSelect, selectedId, highlightedId }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -12,15 +12,15 @@ function OrgNode({ employee, tree, onSelect, selectedId, highlightedId }) {
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
-      margin: "0 10px",
+      margin: "0 6px",
       position: "relative"
     }}>
       {/* Node element */}
       <div 
         onClick={() => onSelect(employee)}
         style={{
-          padding: "12px 16px",
-          borderRadius: "12px",
+          padding: "8px 10px",
+          borderRadius: "10px",
           background: isSelected 
             ? "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))"
             : "var(--bg-card)",
@@ -32,10 +32,10 @@ function OrgNode({ employee, tree, onSelect, selectedId, highlightedId }) {
           boxShadow: isHighlighted ? "0 0 15px rgba(192, 132, 252, 0.4)" : "var(--shadow-sm)",
           cursor: "pointer",
           transition: "all 0.2s ease",
-          width: "210px",
+          width: "145px",
           display: "flex",
           alignItems: "center",
-          gap: "10px",
+          gap: "8px",
           zIndex: 2,
           position: "relative",
         }}
@@ -49,11 +49,11 @@ function OrgNode({ employee, tree, onSelect, selectedId, highlightedId }) {
         <img 
           src={employee.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(employee.name)}`}
           alt={employee.name}
-          style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover", border: "2px solid rgba(255,255,255,0.1)" }}
+          style={{ width: "26px", height: "26px", borderRadius: "50%", objectFit: "cover", border: "1px solid rgba(255,255,255,0.1)" }}
         />
         <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
           <h5 style={{ 
-            fontSize: "13px", 
+            fontSize: "11px", 
             fontWeight: "600", 
             color: "#fff", 
             margin: 0,
@@ -62,20 +62,20 @@ function OrgNode({ employee, tree, onSelect, selectedId, highlightedId }) {
             textOverflow: "ellipsis"
           }}>{employee.name}</h5>
           <p style={{ 
-            fontSize: "11px", 
+            fontSize: "9px", 
             color: isSelected ? "rgba(255,255,255,0.8)" : "var(--text-secondary)", 
-            margin: "2px 0 0",
+            margin: "1px 0 0",
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis"
           }}>{employee.role}</p>
           <div style={{
-            fontSize: "9px",
+            fontSize: "8px",
             fontWeight: "700",
             color: isSelected ? "#fff" : "var(--accent-primary)",
-            marginTop: "3px",
+            marginTop: "2px",
             textTransform: "uppercase",
-            letterSpacing: "0.03em"
+            letterSpacing: "0.02em"
           }}>{employee.department}</div>
         </div>
 
@@ -89,14 +89,14 @@ function OrgNode({ employee, tree, onSelect, selectedId, highlightedId }) {
               background: "rgba(255,255,255,0.06)",
               border: "none",
               borderRadius: "50%",
-              width: "18px",
-              height: "18px",
+              width: "14px",
+              height: "14px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
               color: "#fff",
-              fontSize: "10px",
+              fontSize: "8px",
               padding: 0,
             }}
           >
@@ -117,34 +117,34 @@ function OrgNode({ employee, tree, onSelect, selectedId, highlightedId }) {
           {/* Vertical line down from parent */}
           <div style={{ width: "2px", height: "24px", background: "rgba(255,255,255,0.15)" }}></div>
           
-          {/* Children container with horizontal line */}
+          {/* Children container */}
           <div style={{ 
             display: "flex", 
-            justifyContent: "center", 
+            justifyContent: "safe center", 
             position: "relative",
-            paddingTop: "2px"
           }}>
-            {/* Horizontal connection line spans */}
-            {reports.length > 1 && (
-              <div style={{
-                position: "absolute",
-                top: 0,
-                left: "calc(100% / " + (reports.length * 2) + ")",
-                right: "calc(100% / " + (reports.length * 2) + ")",
-                height: "2px",
-                background: "rgba(255,255,255,0.15)",
-                zIndex: 1
-              }}></div>
-            )}
-            
             {/* Map each report */}
             {reports.map((child, idx) => {
               const isFirst = idx === 0;
               const isLast = idx === reports.length - 1;
               return (
                 <div key={child.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative" }}>
+                  {/* Split horizontal line connectors */}
+                  {reports.length > 1 && (
+                    <div style={{
+                      display: "flex",
+                      width: "100%",
+                      height: "2px",
+                      position: "absolute",
+                      top: 0
+                    }}>
+                      <div style={{ flex: 1, borderTop: isFirst ? "none" : "2px solid rgba(255,255,255,0.15)" }} />
+                      <div style={{ flex: 1, borderTop: isLast ? "none" : "2px solid rgba(255,255,255,0.15)" }} />
+                    </div>
+                  )}
+
                   {/* Vertical connector above child node */}
-                  <div style={{ width: "2px", height: "16px", background: "rgba(255,255,255,0.15)" }}></div>
+                  <div style={{ width: "2px", height: "16px", background: "rgba(255,255,255,0.15)", zIndex: 1 }}></div>
                   <OrgNode 
                     employee={child} 
                     tree={tree} 
@@ -165,6 +165,21 @@ function OrgNode({ employee, tree, onSelect, selectedId, highlightedId }) {
 export default function OrgChartView({ employees }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedEmp, setSelectedEmp] = useState(null);
+  const containerRef = useRef(null);
+
+  // Auto-center the tree scrollbar when it mounts or updates
+  useEffect(() => {
+    if (containerRef.current) {
+      const container = containerRef.current;
+      setTimeout(() => {
+        const scrollWidth = container.scrollWidth;
+        const clientWidth = container.clientWidth;
+        if (scrollWidth > clientWidth) {
+          container.scrollLeft = (scrollWidth - clientWidth) / 2;
+        }
+      }, 100); // 100ms delay to ensure the DOM layout is completed
+    }
+  }, [employees]);
 
   // Group employees by manager and identify root nodes
   const { tree, roots } = useMemo(() => {
@@ -237,35 +252,40 @@ export default function OrgChartView({ employees }) {
       <div style={{ display: "flex", gap: "24px", flex: 1, minHeight: "450px", flexWrap: "wrap-reverse" }}>
         
         {/* Left Side: Hierarchy tree */}
-        <div className="glass-panel" style={{ 
+        <div className="glass-panel" ref={containerRef} style={{ 
           flex: 2, 
           padding: "24px", 
           overflowX: "auto", 
           overflowY: "auto",
           minWidth: "350px",
-          display: "flex", 
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "flex-start",
           background: "rgba(10, 11, 16, 0.4)",
           border: "1px solid var(--glass-border)",
           position: "relative",
-          maxHeight: "650px"
+          maxHeight: "650px",
+          display: "block"
         }}>
           {roots.length === 0 ? (
-            <p style={{ color: "var(--text-muted)", marginTop: "40px" }}>No employee hierarchy root found.</p>
+            <p style={{ color: "var(--text-muted)", marginTop: "40px", textAlign: "center" }}>No employee hierarchy root found.</p>
           ) : (
-            <div style={{ display: "flex", gap: "40px", justifyContent: "center" }}>
-              {roots.map(root => (
-                <OrgNode 
-                  key={root.id} 
-                  employee={root} 
-                  tree={tree} 
-                  onSelect={handleSelectNode}
-                  selectedId={selectedEmp?.id}
-                  highlightedId={highlightedEmp?.id}
-                />
-              ))}
+            <div style={{ 
+              display: "flex",
+              justifyContent: "safe center",
+              width: "100%",
+              minWidth: "max-content",
+              padding: "10px 0"
+            }}>
+              <div style={{ display: "flex", gap: "12px", justifyContent: "safe center" }}>
+                {roots.map(root => (
+                  <OrgNode 
+                    key={root.id} 
+                    employee={root} 
+                    tree={tree} 
+                    onSelect={handleSelectNode}
+                    selectedId={selectedEmp?.id}
+                    highlightedId={highlightedEmp?.id}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>

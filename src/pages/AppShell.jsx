@@ -16,6 +16,7 @@ import TeamView from "../components/views/TeamView";
 import AuditLogView from "../components/views/AuditLogView";
 import OrgChartView from "../components/views/OrgChartView";
 import AttendanceView from "../components/views/AttendanceView";
+import ExpenseClaimsView from "../components/views/ExpenseClaimsView";
 import BillingPage from "./BillingPage";
 
 import { api, authApi } from "../api";
@@ -23,7 +24,7 @@ import { initialEmployees, initialLeaves, initialCandidates } from "../mockData"
 
 const VALID_TABS = new Set([
   "dashboard", "employees", "leaves", "performance", "ats", "policies",
-  "chatbot", "database", "profile", "team", "audit", "billing", "org-chart", "attendance"
+  "chatbot", "database", "profile", "team", "audit", "billing", "org-chart", "attendance", "expenses"
 ]);
 
 export default function AppShell() {
@@ -214,6 +215,7 @@ export default function AppShell() {
       case "billing":     return <BillingPage currentUser={currentUser} />;
       case "org-chart":   return <OrgChartView employees={employees} />;
       case "attendance":  return <AttendanceView employees={employees} currentUser={currentUser} dbConnected={dbConnected} clockStatus={clockStatus} setClockStatus={setClockStatus} />;
+      case "expenses":    return <ExpenseClaimsView currentUser={currentUser} dbConnected={dbConnected} />;
       default:            return null;
     }
   };

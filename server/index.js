@@ -12,7 +12,7 @@ import {
   orgQueries, userQueries, empQueries, leaveQueries,
   candQueries, chatQueries, auditQueries, inviteQueries, seedOrgData,
   refreshTokenQueries, goalQueries, reviewQueries, leaveBalanceQueries, notifQueries,
-  attendanceQueries,
+  attendanceQueries, expenseQueries,
 } from "./db.js";
 import db from "./db.js";
 import { getAIResponse, getActiveEngine } from "./ai.js";
@@ -26,11 +26,13 @@ import { checkAiQuota, incrementAiUsage } from "./middleware/checkAiQuota.js";
 import { effectiveMaxSeats, TRIAL_DAYS, getPlanConfig } from "./billing/plans.js";
 import { mountStatic } from "./static.js";
 import { runTrialExpiryJob } from "./jobs/trialExpiry.js";
+import { generatePayslipPdf } from "./billing/payslip.js";
 import {
   validate, registerSchema, loginSchema, forgotSchema, resetSchema,
   updateEmployeeSchema, createLeaveSchema, updateLeaveStatusSchema,
   createCandidateSchema, updateCandidateStageSchema, chatMessageSchema,
   updateProfileSchema, changePasswordSchema, createInviteSchema, joinByInviteSchema,
+  createExpenseSchema, updateExpenseStatusSchema,
 } from "./validators.js";
 
 // ── Config (from .env) ────────────────────────────────────────────────────────
@@ -200,6 +202,20 @@ async function bootstrap() {
 
   // Seed demo HR data scoped to this org
   seedOrgData(orgId, initialEmployees, initialLeaves, initialCandidates);
+
+  // Auto-generate matching login credentials for all seeded employees
+  for (const emp of initialEmployees) {
+    if (emp.email.toLowerCase().trim() === "evelyn@company.com") continue;
+    const hashVal = await bcrypt.hash("User@123", 12);
+    userQueries.insert.run({
+      org_id:        orgId,
+      name:          emp.name,
+      email:         emp.email.toLowerCase().trim(),
+      password_hash: hashVal,
+      role:          emp.role.toLowerCase().includes("manager") || emp.role.toLowerCase().includes("director") ? "manager" : "employee",
+      avatar:        emp.avatar,
+    });
+  }
 
   console.log("🏢 Demo org created: PeopleCore Demo (slug: peoplecore-demo)");
   console.log("👤 Admin: evelyn@company.com / Admin@123");
@@ -518,6 +534,131 @@ app.patch("/api/leaves/:id/status", requireAuth, requireRole("admin", "manager")
   } catch { /* non-critical */ }
 
   res.json(leaveQueries.byId.get(req.params.id, req.user.org_id));
+});
+
+// ── ─────────────────────────────────────────────────────────────────────────
+// EXPENSES (Mewurk-like module)
+// ─────────────────────────────────────────────────────────────────────────────
+
+app.get("/api/expenses", requireAuth, (req, res) => {
+  try {
+    const isAdminOrManager = ["admin", "manager"].includes(req.user.role);
+    if (isAdminOrManager) {
+      res.json(expenseQueries.byOrg.all(req.user.org_id));
+    } else {
+      res.json(expenseQueries.byUser.all(req.user.org_id, req.user.id));
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/expenses", requireAuth, validate(createExpenseSchema), (req, res) => {
+  const { amount, category, date, notes } = req.body;
+  try {
+    const user = userQueries.byId.get(req.user.id);
+    const result = expenseQueries.insert.run({
+      org_id: req.user.org_id,
+      user_id: req.user.id,
+      requester: user?.name || "Unknown",
+      amount,
+      category,
+      date,
+      status: "Pending",
+      notes: notes || null
+    });
+
+    audit(req, "create_expense", "expenses", result.lastInsertRowid, { amount, category });
+
+    // Notify managers/admins of the new claim
+    try {
+      const managers = db.prepare("SELECT id FROM users WHERE org_id=? AND role IN ('admin','manager')").all(req.user.org_id);
+      for (const m of managers) {
+        if (m.id !== req.user.id) {
+          notifQueries.insert.run({
+            org_id: req.user.org_id,
+            user_id: m.id,
+            title: "New Expense Claim",
+            body: `${user?.name || "An employee"} submitted a $${amount} claim for ${category}`,
+            type: "info"
+          });
+        }
+      }
+    } catch { /* non-critical */ }
+
+    res.status(201).json(db.prepare("SELECT * FROM expenses WHERE id=?").get(result.lastInsertRowid));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch("/api/expenses/:id/status", requireAuth, requireRole("admin", "manager"), validate(updateExpenseStatusSchema), (req, res) => {
+  const { status } = req.body;
+  try {
+    const expense = db.prepare("SELECT * FROM expenses WHERE id=? AND org_id=?").get(req.params.id, req.user.org_id);
+    if (!expense) return res.status(404).json({ error: "Expense claim not found." });
+
+    expenseQueries.updateStatus.run(status, req.params.id, req.user.org_id);
+    audit(req, `expense_${status.toLowerCase()}`, "expenses", req.params.id);
+
+    // Notify employee
+    try {
+      notifQueries.insert.run({
+        org_id: req.user.org_id,
+        user_id: expense.user_id,
+        title: `Expense Claim ${status}`,
+        body: `Your claim of $${expense.amount} for ${expense.category} has been ${status.toLowerCase()}`,
+        type: status === "Approved" ? "success" : "warning"
+      });
+    } catch { /* non-critical */ }
+
+    res.json(db.prepare("SELECT * FROM expenses WHERE id=?").get(req.params.id));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── ─────────────────────────────────────────────────────────────────────────
+// PAYSLIP RECEIPT GENERATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+app.get("/api/payslips/download/:month", requireAuth, async (req, res) => {
+  const { month } = req.params;
+  try {
+    const user = userQueries.byId.get(req.user.id);
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    const org = orgQueries.byId.get(req.user.org_id);
+
+    // Try to find matching employee metadata in employees table to get salary & role details
+    let employee = db.prepare("SELECT * FROM employees WHERE org_id=? AND email=? LIMIT 1").get(req.user.org_id, user.email);
+    if (!employee) {
+      // If not found in employees, create a mock configuration
+      employee = {
+        id: `EMP${String(user.id).padStart(3, "0")}`,
+        role: user.role === "admin" ? "Engineering Manager" : user.role === "manager" ? "HR Lead" : "Senior Developer",
+        department: user.role === "admin" ? "Engineering" : "Operations",
+        salary: "$95,000",
+      };
+    }
+
+    const pdfBuffer = await generatePayslipPdf({
+      orgName: org?.name || "PeopleCore Organization",
+      employeeName: user.name,
+      employeeId: employee.id,
+      role: employee.role,
+      department: employee.department,
+      salary: employee.salary,
+      month: month,
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=payslip_${month.replace(/\s+/g, "_")}.pdf`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("PDF generation failed:", err);
+    res.status(500).json({ error: "Failed to generate payslip PDF" });
+  }
 });
 
 // ── ─────────────────────────────────────────────────────────────────────────

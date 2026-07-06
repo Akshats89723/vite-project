@@ -203,6 +203,22 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_attendance_user_date ON attendance_logs(user_id, date);
   CREATE INDEX IF NOT EXISTS idx_attendance_org ON attendance_logs(org_id);
 
+  -- ── Expenses (Mewurk-like module) ──────────────────────────────────────────
+  CREATE TABLE IF NOT EXISTS expenses (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id     INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    requester  TEXT NOT NULL,
+    amount     REAL NOT NULL,
+    category   TEXT NOT NULL CHECK(category IN ('Travel', 'Meals', 'Hardware', 'Software', 'L&D', 'Other')),
+    date       TEXT NOT NULL,
+    status     TEXT DEFAULT 'Pending' CHECK(status IN ('Pending','Approved','Rejected')),
+    notes      TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_expenses_user ON expenses(user_id);
+  CREATE INDEX IF NOT EXISTS idx_expenses_org  ON expenses(org_id);
+
   -- ── Indexes ───────────────────────────────────────────────────────────────
   CREATE INDEX IF NOT EXISTS idx_users_org        ON users(org_id);
   CREATE INDEX IF NOT EXISTS idx_users_email      ON users(email);
@@ -439,6 +455,18 @@ export const inviteQueries = {
   delete:    db.prepare("DELETE FROM invite_tokens WHERE id=? AND org_id=?"),
 };
 
+// ── Expenses ─────────────────────────────────────────────────────────────────
+
+export const expenseQueries = {
+  byOrg: db.prepare("SELECT * FROM expenses WHERE org_id=? ORDER BY date DESC"),
+  byUser: db.prepare("SELECT * FROM expenses WHERE org_id=? AND user_id=? ORDER BY date DESC"),
+  insert: db.prepare(`
+    INSERT INTO expenses (org_id, user_id, requester, amount, category, date, status, notes)
+    VALUES (@org_id, @user_id, @requester, @amount, @category, @date, @status, @notes)
+  `),
+  updateStatus: db.prepare("UPDATE expenses SET status=? WHERE id=? AND org_id=?"),
+};
+
 // ── Seed helper (per-org) ─────────────────────────────────────────────────────
 
 export function seedOrgData(orgId, employees, leaves, candidates) {
@@ -466,6 +494,28 @@ export function seedOrgData(orgId, employees, leaves, candidates) {
         id: c.id, org_id: orgId, name: c.name, role: c.role,
         score: c.score, stage: c.stage, email: c.email,
       });
+    }
+
+    // Seed some demo expenses
+    const adminUser = db.prepare("SELECT id FROM users WHERE org_id=? LIMIT 1").get(orgId);
+    if (adminUser) {
+      const expenses = [
+        { amount: 150.00, category: "Meals", date: "2026-07-01", status: "Approved", notes: "Client dinner at Bistro" },
+        { amount: 1200.00, category: "Hardware", date: "2026-07-03", status: "Pending", notes: "External 4K Monitor upgrade" },
+        { amount: 45.50, category: "Travel", date: "2026-07-05", status: "Pending", notes: "Uber ride to client office" }
+      ];
+      for (const exp of expenses) {
+        expenseQueries.insert.run({
+          org_id: orgId,
+          user_id: adminUser.id,
+          requester: "Evelyn Carter",
+          amount: exp.amount,
+          category: exp.category,
+          date: exp.date,
+          status: exp.status,
+          notes: exp.notes
+        });
+      }
     }
   });
   seedAll();

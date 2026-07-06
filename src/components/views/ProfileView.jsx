@@ -120,6 +120,34 @@ function ProfileView({ currentUser, onUserUpdate }) {
     }
   };
 
+  const handleDownloadPayslip = (month) => {
+    const token = localStorage.getItem("pc_token");
+    const downloadUrl = profileApi.downloadPayslip(month);
+    
+    fetch(downloadUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+    .then(res => {
+      if (!res.ok) throw new Error("Could not download payslip");
+      return res.blob();
+    })
+    .then(blob => {
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `payslip_${month.replace(/\s+/g, "_")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    })
+    .catch(err => {
+      alert("Error downloading payslip: " + err.message);
+    });
+  };
+
   const org = currentUser?.org || {};
   const seatsUsed  = org.seats_used  ?? org.seatsUsed  ?? 0;
   const seatsTotal = org.seats_total ?? org.seatsTotal ?? "∞";
@@ -342,6 +370,77 @@ function ProfileView({ currentUser, onUserUpdate }) {
             <p style={{ fontSize: "15px", fontWeight: "600", color: "var(--text-primary)" }}>
               {seatsUsed} / {seatsTotal}
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Salary & Payslips card ────────────────────────────────────────────── */}
+      <div className="glass-panel" style={{ padding: "20px 24px", marginTop: "20px" }}>
+        <h3 style={{ fontSize: "14px", fontWeight: "600", color: "var(--text-secondary)", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          Salary & Payslips (Mewurk-like Payroll)
+        </h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: "30px", alignItems: "start" }}>
+          {/* Salary Breakdown */}
+          <div style={{ padding: "16px", borderRadius: "8px", background: "rgba(255,255,255,0.02)", border: "1px solid var(--glass-border)" }}>
+            <h4 style={{ fontSize: "13px", fontWeight: "600", color: "var(--text-primary)", marginBottom: "12px" }}>Monthly Salary Structure</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px dashed rgba(255,255,255,0.06)", paddingBottom: "4px" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Basic Salary (50%)</span>
+                <span style={{ fontWeight: "500", color: "var(--text-primary)" }}>$3,958.33</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px dashed rgba(255,255,255,0.06)", paddingBottom: "4px" }}>
+                <span style={{ color: "var(--text-secondary)" }}>House Rent Allowance (30%)</span>
+                <span style={{ fontWeight: "500", color: "var(--text-primary)" }}>$2,375.00</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px dashed rgba(255,255,255,0.06)", paddingBottom: "4px" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Special Allowance (20%)</span>
+                <span style={{ fontWeight: "500", color: "var(--text-primary)" }}>$1,583.33</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px dashed rgba(255,255,255,0.06)", paddingBottom: "4px", color: "var(--danger)" }}>
+                <span>Provident Fund (PF)</span>
+                <span>-$475.00</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px dashed rgba(255,255,255,0.06)", paddingBottom: "4px", color: "var(--danger)" }}>
+                <span>Professional Tax (PT)</span>
+                <span>-$150.00</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", fontWeight: "600", fontSize: "13px", color: "#c084fc" }}>
+                <span>Net Take-Home Pay</span>
+                <span>$7,291.66</span>
+              </div>
+            </div>
+            <p style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "12px" }}>
+              * Breakdown calculated based on annual salary of $95,000.
+            </p>
+          </div>
+
+          {/* Payslips Download */}
+          <div>
+            <h4 style={{ fontSize: "13px", fontWeight: "600", color: "var(--text-primary)", marginBottom: "12px" }}>Recent Payslips</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {["June 2026", "May 2026", "April 2026"].map((month) => (
+                <div key={month} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "12px 16px", borderRadius: "8px",
+                  background: "rgba(255,255,255,0.03)", border: "1px solid var(--glass-border)",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "20px" }}>📄</span>
+                    <div>
+                      <p style={{ fontSize: "13px", fontWeight: "500", color: "var(--text-primary)" }}>{month}</p>
+                      <p style={{ fontSize: "11px", color: "var(--text-muted)" }}>PDF Payslip</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDownloadPayslip(month)}
+                    className="btn btn-secondary"
+                    style={{ padding: "6px 12px", fontSize: "12px" }}
+                  >
+                    📥 Download
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

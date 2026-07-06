@@ -219,6 +219,7 @@ export const profileApi = {
   get:            ()     => req("/profile"),
   update:         (body) => req("/profile",                 { method: "PATCH", body: JSON.stringify(body) }),
   changePassword: (body) => req("/profile/change-password", { method: "POST",  body: JSON.stringify(body) }),
+  downloadPayslip: (month) => `${BASE}/payslips/download/${encodeURIComponent(month)}`,
 };
 
 // ── Invites ────────────────────────────────────────────────────────────────────
@@ -273,6 +274,12 @@ export const api = {
     create:   (body)          => req("/candidates",              { method: "POST",  body: JSON.stringify(body) }),
     setStage: (id, stage)     => req(`/candidates/${id}/stage`,  { method: "PATCH", body: JSON.stringify({ stage }) }),
     parseResume: (resumeText) => req("/candidates/parse-resume", { method: "POST",  body: JSON.stringify({ resumeText }) }),
+  },
+
+  expenses: {
+    list:      ()              => req("/expenses"),
+    create:    (body)          => req("/expenses",              { method: "POST",  body: JSON.stringify(body) }),
+    setStatus: (id, status)    => req(`/expenses/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
   },
 
   attendance: {
